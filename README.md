@@ -2,6 +2,31 @@
 
 A Node.js/Express backend for a products availability and stock tracking system. This system allows customers to view which products are available, at what locations, and how many are in stock.
 
+## Quick Start
+
+```bash
+# Clone and install
+git clone https://github.com/chifundo365/shop-tech_backend.git
+cd shop-tech_backend
+npm install
+
+# Set up environment
+cp .env.example .env
+
+# Start PostgreSQL (Docker)
+docker-compose up -d
+
+# Set up database
+npm run prisma:generate
+npm run prisma:migrate
+npm run prisma:seed
+
+# Start development server
+npm run dev
+```
+
+The API will be available at `http://localhost:3000`
+
 ## Features
 
 - **Product Management**: Create, read, and update product information
@@ -45,19 +70,31 @@ cp .env.example .env
 
 Edit `.env` and update the `DATABASE_URL` with your PostgreSQL connection string:
 ```
-DATABASE_URL="postgresql://user:password@localhost:5432/shop_tech?schema=public"
+DATABASE_URL="postgresql://shop_tech_user:shop_tech_password@localhost:5432/shop_tech?schema=public"
 PORT=3000
 NODE_ENV=development
 ```
 
-4. Generate Prisma Client:
+4. Start PostgreSQL database (using Docker):
+```bash
+docker-compose up -d
+```
+
+Or set up PostgreSQL manually and ensure it's running on port 5432.
+
+5. Generate Prisma Client:
 ```bash
 npm run prisma:generate
 ```
 
-5. Run database migrations:
+6. Run database migrations:
 ```bash
 npm run prisma:migrate
+```
+
+7. (Optional) Seed the database with sample data:
+```bash
+npm run prisma:seed
 ```
 
 ## Running the Application
