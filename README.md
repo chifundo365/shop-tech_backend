@@ -87,6 +87,11 @@ Or set up PostgreSQL manually and ensure it's running on port 5432.
 npm run prisma:generate
 ```
 
+**Note**: If you encounter network issues downloading Prisma engines, you may need to:
+- Check your internet connection
+- Configure proxy settings if behind a corporate firewall
+- Or manually download engines from [Prisma's releases](https://github.com/prisma/prisma-engines/releases)
+
 6. Run database migrations:
 ```bash
 npm run prisma:migrate
