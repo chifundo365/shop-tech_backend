@@ -1,0 +1,583 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Category {
+  id             String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name           String
+  description    String?
+  image_url      String?
+  icon           String?
+  parent_id      String?    @db.Uuid
+  sort_order     Int?       @default(0)
+  is_active      Boolean?   @default(true)
+  created_at     DateTime?  @default(now()) @db.Timestamp(6)
+  Category       Category?  @relation("CategoryToCategory", fields: [parent_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  other_Category Category[] @relation("CategoryToCategory")
+  Product        Product[]
+}
+
+model Delivery {
+  id                      String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  order_id                String             @unique @db.Uuid
+  tracking_number         String?
+  delivery_agent_id       String?            @db.Uuid
+  status                  delivery_status    @default(PENDING)
+  estimated_delivery      DateTime?          @db.Timestamp(6)
+  actual_delivery         DateTime?          @db.Timestamp(6)
+  recipient_signature_url String?
+  delivery_photo_urls     String[]
+  notes                   String?
+  created_at              DateTime?          @default(now()) @db.Timestamp(6)
+  updated_at              DateTime?          @default(now()) @db.Timestamp(6)
+  User                    User?              @relation(fields: [delivery_agent_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  Order                   Order              @relation(fields: [order_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  DeliveryTracking        DeliveryTracking[]
+
+  @@index([order_id], map: "idx_delivery_order")
+  @@index([status], map: "idx_delivery_status")
+}
+
+model DeliveryTracking {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  delivery_id  String    @db.Uuid
+  status       String
+  location_lat Decimal?  @db.Decimal(10, 8)
+  location_lng Decimal?  @db.Decimal(11, 8)
+  notes        String?
+  created_at   DateTime? @default(now()) @db.Timestamp(6)
+  Delivery     Delivery  @relation(fields: [delivery_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model InventoryHistory {
+  id              String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  shop_product_id String      @db.Uuid
+  previous_stock  Int
+  new_stock       Int
+  change_amount   Int
+  change_type     String?
+  reason          String?
+  changed_by      String?     @db.Uuid
+  created_at      DateTime?   @default(now()) @db.Timestamp(6)
+  User            User?       @relation(fields: [changed_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  ShopProduct     ShopProduct @relation(fields: [shop_product_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+model Notification {
+  id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id             String    @db.Uuid
+  title               String
+  message             String
+  type                String?
+  is_read             Boolean?  @default(false)
+  related_entity_type String?
+  related_entity_id   String?   @db.Uuid
+  sent_at             DateTime? @default(now()) @db.Timestamp(6)
+  User                User      @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model Order {
+  id                      String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  order_number            String             @unique
+  buyer_id                String             @db.Uuid
+  shop_id                 String             @db.Uuid
+  total_amount            Decimal            @db.Decimal(10, 2)
+  subtotal_amount         Decimal            @db.Decimal(10, 2)
+  tax_amount              Decimal?           @default(0) @db.Decimal(10, 2)
+  delivery_fee            Decimal?           @default(0) @db.Decimal(10, 2)
+  discount_amount         Decimal?           @default(0) @db.Decimal(10, 2)
+  delivery_method         String?            @default("DELIVERY")
+  delivery_address_id     String?            @db.Uuid
+  delivery_instructions   String?
+  preferred_delivery_time DateTime?          @db.Timestamp(6)
+  status                  order_status       @default(PENDING)
+  confirmed_at            DateTime?          @db.Timestamp(6)
+  preparing_at            DateTime?          @db.Timestamp(6)
+  ready_at                DateTime?          @db.Timestamp(6)
+  out_for_delivery_at     DateTime?          @db.Timestamp(6)
+  delivered_at            DateTime?          @db.Timestamp(6)
+  cancelled_at            DateTime?          @db.Timestamp(6)
+  cancellation_reason     String?
+  cancelled_by            String?
+  created_at              DateTime           @default(now()) @db.Timestamp(6)
+  updated_at              DateTime           @default(now()) @db.Timestamp(6)
+  Delivery                Delivery?
+  User                    User               @relation(fields: [buyer_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  UserAddress             UserAddress?       @relation(fields: [delivery_address_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  Shop                    Shop               @relation(fields: [shop_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  OrderItem               OrderItem[]
+  OrderMessage            OrderMessage[]
+  Payment                 Payment[]
+  Review                  Review?
+  StockReservation        StockReservation[]
+
+  @@index([buyer_id], map: "idx_order_buyer")
+  @@index([created_at], map: "idx_order_created")
+  @@index([shop_id], map: "idx_order_shop")
+  @@index([status], map: "idx_order_status")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model OrderItem {
+  id                String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  order_id          String             @db.Uuid
+  shop_product_id   String?            @db.Uuid
+  product_name      String
+  product_brand     String?
+  product_model     String?
+  product_image_url String?
+  condition         product_condition?
+  variation_name    String?
+  variation_value   String?
+  quantity          Int
+  unit_price        Decimal            @db.Decimal(10, 2)
+  total_price       Decimal            @db.Decimal(10, 2)
+  created_at        DateTime           @default(now()) @db.Timestamp(6)
+  Order             Order              @relation(fields: [order_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  ShopProduct       ShopProduct?       @relation(fields: [shop_product_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([order_id], map: "idx_orderitem_order")
+  @@index([shop_product_id], map: "idx_orderitem_shopproduct")
+}
+
+model OrderMessage {
+  id             String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  order_id       String          @db.Uuid
+  recipient_type recipient_type
+  recipient_id   String          @db.Uuid
+  channel        message_channel
+  message        String
+  status         String          @default("PENDING")
+  sent_at        DateTime?       @db.Timestamp(6)
+  created_at     DateTime        @default(now()) @db.Timestamp(6)
+  updated_at     DateTime        @default(now()) @db.Timestamp(6)
+  Order          Order           @relation(fields: [order_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model Payment {
+  id                     String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  order_id               String         @db.Uuid
+  payment_method         String
+  provider               String
+  amount                 Decimal        @db.Decimal(10, 2)
+  currency               String?        @default("MWK")
+  transaction_fee        Decimal?       @default(0) @db.Decimal(10, 2)
+  status                 payment_status @default(PENDING)
+  transaction_id         String?
+  customer_phone         String?
+  customer_email         String?
+  gateway_transaction_id String?
+  payment_time           DateTime       @default(now()) @db.Timestamp(6)
+  refunded_at            DateTime?      @db.Timestamp(6)
+  response               Json?
+  notes                  String?
+  created_at             DateTime       @default(now()) @db.Timestamp(6)
+  updated_at             DateTime       @default(now()) @db.Timestamp(6)
+  Order                  Order          @relation(fields: [order_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([order_id], map: "idx_payment_order")
+  @@index([status], map: "idx_payment_status")
+}
+
+model PriceHistory {
+  id              String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  shop_product_id String      @db.Uuid
+  price           Decimal     @db.Decimal(10, 2)
+  created_at      DateTime?   @default(now()) @db.Timestamp(6)
+  ShopProduct     ShopProduct @relation(fields: [shop_product_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+model Product {
+  id                    String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name                  String
+  description           String?
+  brand                 String?
+  model                 String?
+  sku                   String?        @unique
+  upc_barcode           String?
+  mpn                   String?
+  category_id           String?        @db.Uuid
+  specifications        Json?
+  image_urls            String[]
+  video_url             String?
+  document_urls         String[]
+  is_active             Boolean?       @default(true)
+  requires_verification Boolean?       @default(false)
+  created_by            String?        @db.Uuid
+  created_at            DateTime       @default(now()) @db.Timestamp(6)
+  updated_at            DateTime       @default(now()) @db.Timestamp(6)
+  Category              Category?      @relation(fields: [category_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  User                  User?          @relation(fields: [created_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  Review                Review[]
+  ShopProduct           ShopProduct[]
+  StockAlert            StockAlert[]
+  UserActivity          UserActivity[]
+  Wishlist              Wishlist[]
+
+  @@index([brand], map: "idx_product_brand")
+  @@index([category_id], map: "idx_product_category")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model Review {
+  id                   String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  order_id             String    @unique @db.Uuid
+  reviewer_id          String    @db.Uuid
+  shop_id              String    @db.Uuid
+  product_id           String    @db.Uuid
+  rating               Int
+  title                String?
+  comment              String?
+  images               String[]
+  is_verified_purchase Boolean?  @default(true)
+  is_approved          Boolean?  @default(true)
+  helpful_count        Int?      @default(0)
+  created_at           DateTime? @default(now()) @db.Timestamp(6)
+  updated_at           DateTime? @default(now()) @db.Timestamp(6)
+  Order                Order     @relation(fields: [order_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  Product              Product   @relation(fields: [product_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  User                 User      @relation(fields: [reviewer_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  Shop                 Shop      @relation(fields: [shop_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([order_id], map: "idx_review_order")
+  @@index([shop_id], map: "idx_review_shop")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model SellerPayout {
+  id                String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  seller_type       String
+  shop_id           String?        @db.Uuid
+  seller_profile_id String?        @db.Uuid
+  amount            Decimal        @db.Decimal(12, 2)
+  currency          String?        @default("MWK")
+  payout_method     String?        @default("MPAMBA")
+  payout_reference  String?
+  status            payout_status  @default(PENDING)
+  orders_included   String[]       @db.Uuid
+  processed_at      DateTime?      @db.Timestamp(6)
+  created_at        DateTime?      @default(now()) @db.Timestamp(6)
+  SellerProfile     SellerProfile? @relation(fields: [seller_profile_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  Shop              Shop?          @relation(fields: [shop_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model SellerProfile {
+  id                String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id           String         @unique @db.Uuid
+  display_name      String?
+  bio               String?
+  specialization    String?
+  years_experience  Int?
+  government_id_url String?
+  tax_id            String?
+  average_rating    Decimal?       @default(0) @db.Decimal(3, 2)
+  total_reviews     Int?           @default(0)
+  total_sales       Int?           @default(0)
+  response_rate     Decimal?       @default(0) @db.Decimal(5, 2)
+  is_verified       Boolean?       @default(false)
+  is_active         Boolean?       @default(true)
+  created_at        DateTime?      @default(now()) @db.Timestamp(6)
+  updated_at        DateTime?      @default(now()) @db.Timestamp(6)
+  SellerPayout      SellerPayout[]
+  User              User           @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model Shop {
+  id                           String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name                         String
+  description                  String?
+  slogan                       String?
+  address_line1                String?
+  address_line2                String?
+  city                         String?
+  state                        String?
+  country                      String?        @default("Malawi")
+  postal_code                  String?
+  latitude                     Decimal?       @db.Decimal(10, 8)
+  longitude                    Decimal?       @db.Decimal(11, 8)
+  phone                        String?
+  email                        String?
+  website                      String?
+  business_registration_number String?
+  tax_id                       String?
+  business_type                String?
+  logo_url                     String?
+  cover_image_url              String?
+  banner_color                 String?        @default("#2563eb")
+  images                       String[]
+  is_individual                Boolean        @default(false)
+  is_verified                  Boolean        @default(false)
+  verification_notes           String?
+  owner_id                     String?        @db.Uuid
+  google_place_id              String?
+  google_maps_url              String?
+  opening_hours                Json?
+  delivery_enabled             Boolean?       @default(true)
+  pickup_enabled               Boolean?       @default(false)
+  delivery_radius_km           Int?           @default(10)
+  free_delivery_threshold      Decimal?       @default(0) @db.Decimal(10, 2)
+  delivery_fee                 Decimal?       @default(0) @db.Decimal(10, 2)
+  average_rating               Decimal?       @default(0) @db.Decimal(3, 2)
+  total_reviews                Int?           @default(0)
+  total_orders                 Int?           @default(0)
+  response_rate                Decimal?       @default(0) @db.Decimal(5, 2)
+  created_at                   DateTime       @default(now()) @db.Timestamp(6)
+  updated_at                   DateTime       @default(now()) @db.Timestamp(6)
+  Order                        Order[]
+  Review                       Review[]
+  SellerPayout                 SellerPayout[]
+  User                         User?          @relation(fields: [owner_id], references: [id], onUpdate: NoAction)
+  ShopHours                    ShopHours[]
+  ShopProduct                  ShopProduct[]
+  StockAlert                   StockAlert[]
+  UserActivity                 UserActivity[]
+
+  @@index([city], map: "idx_shop_city")
+  @@index([latitude, longitude], map: "idx_shop_lat_lng")
+  @@index([owner_id], map: "idx_shop_owner")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model ShopHours {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  shop_id     String    @db.Uuid
+  day_of_week Int?
+  opens_at    DateTime? @db.Time(6)
+  closes_at   DateTime? @db.Time(6)
+  is_closed   Boolean?  @default(false)
+  created_at  DateTime? @default(now()) @db.Timestamp(6)
+  Shop        Shop      @relation(fields: [shop_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([shop_id, day_of_week])
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model ShopProduct {
+  id                  String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  shop_id             String             @db.Uuid
+  product_id          String             @db.Uuid
+  price               Decimal            @db.Decimal(10, 2)
+  original_price      Decimal?           @db.Decimal(10, 2)
+  stock_quantity      Int                @default(0)
+  low_stock_threshold Int?               @default(5)
+  sku                 String?
+  variation_name      String?
+  variation_value     String?
+  condition           product_condition? @default(NEW)
+  images              String[]
+  description         String?
+  weight_kg           Decimal?           @db.Decimal(8, 3)
+  dimensions          Json?
+  handling_days       Int?               @default(1)
+  is_available        Boolean?           @default(true)
+  is_featured         Boolean?           @default(false)
+  is_verified         Boolean?           @default(false)
+  view_count          Int?               @default(0)
+  order_count         Int?               @default(0)
+  created_at          DateTime           @default(now()) @db.Timestamp(6)
+  updated_at          DateTime           @default(now()) @db.Timestamp(6)
+  InventoryHistory    InventoryHistory[]
+  OrderItem           OrderItem[]
+  PriceHistory        PriceHistory[]
+  Product             Product            @relation(fields: [product_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  Shop                Shop               @relation(fields: [shop_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  StockReservation    StockReservation[]
+
+  @@unique([shop_id, product_id, sku])
+  @@index([price], map: "idx_shopproduct_price")
+  @@index([product_id], map: "idx_shopproduct_product")
+  @@index([shop_id], map: "idx_shopproduct_shop")
+}
+
+model StockAlert {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id    String    @db.Uuid
+  product_id String    @db.Uuid
+  shop_id    String    @db.Uuid
+  is_active  Boolean?  @default(true)
+  created_at DateTime? @default(now()) @db.Timestamp(6)
+  Product    Product   @relation(fields: [product_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  Shop       Shop      @relation(fields: [shop_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  User       User      @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([user_id, product_id, shop_id])
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model StockReservation {
+  id              String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  shop_product_id String      @db.Uuid
+  order_id        String?     @db.Uuid
+  quantity        Int
+  expires_at      DateTime    @db.Timestamp(6)
+  status          String?     @default("RESERVED")
+  created_at      DateTime?   @default(now()) @db.Timestamp(6)
+  Order           Order?      @relation(fields: [order_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  ShopProduct     ShopProduct @relation(fields: [shop_product_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+model User {
+  id                String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name              String
+  email             String             @unique
+  phone             String?
+  password          String
+  role              user_role          @default(USER)
+  profile_image_url String?
+  is_email_verified Boolean            @default(false)
+  is_phone_verified Boolean            @default(false)
+  is_active         Boolean            @default(true)
+  last_login        DateTime?          @db.Timestamp(6)
+  total_orders      Int?               @default(0)
+  total_spent       Decimal?           @default(0) @db.Decimal(12, 2)
+  created_at        DateTime           @default(now()) @db.Timestamp(6)
+  updated_at        DateTime           @default(now()) @db.Timestamp(6)
+  Delivery          Delivery[]
+  InventoryHistory  InventoryHistory[]
+  Notification      Notification[]
+  Order             Order[]
+  Product           Product[]
+  Review            Review[]
+  SellerProfile     SellerProfile?
+  Shop              Shop[]
+  StockAlert        StockAlert[]
+  UserActivity      UserActivity[]
+  UserAddress       UserAddress[]
+  Wishlist          Wishlist[]
+
+  @@index([created_at], map: "idx_user_created")
+  @@index([email], map: "idx_user_email")
+  @@index([role], map: "idx_user_role")
+}
+
+model UserActivity {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id       String?   @db.Uuid
+  activity_type String?
+  product_id    String?   @db.Uuid
+  shop_id       String?   @db.Uuid
+  search_query  String?
+  metadata      Json?
+  created_at    DateTime? @default(now()) @db.Timestamp(6)
+  Product       Product?  @relation(fields: [product_id], references: [id], onUpdate: NoAction)
+  Shop          Shop?     @relation(fields: [shop_id], references: [id], onUpdate: NoAction)
+  User          User?     @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model UserAddress {
+  id                    String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id               String        @db.Uuid
+  address_type          address_type? @default(HOME)
+  label                 String?
+  contact_name          String
+  contact_phone         String?
+  address_line1         String
+  address_line2         String?
+  city                  String
+  state                 String?
+  country               String?       @default("Malawi")
+  postal_code           String?
+  latitude              Decimal?      @db.Decimal(10, 8)
+  longitude             Decimal?      @db.Decimal(11, 8)
+  delivery_instructions String?
+  is_default            Boolean?      @default(false)
+  is_active             Boolean?      @default(true)
+  created_at            DateTime?     @default(now()) @db.Timestamp(6)
+  Order                 Order[]
+  User                  User          @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([city], map: "idx_useraddress_city")
+  @@index([latitude, longitude], map: "idx_useraddress_lat_lng")
+  @@index([user_id], map: "idx_useraddress_user")
+}
+
+model Wishlist {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id    String    @db.Uuid
+  product_id String    @db.Uuid
+  created_at DateTime? @default(now()) @db.Timestamp(6)
+  Product    Product   @relation(fields: [product_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  User       User      @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([user_id, product_id])
+}
+
+enum address_type {
+  HOME
+  WORK
+  BILLING
+  PICKUP_POINT
+}
+
+enum delivery_status {
+  PENDING
+  ASSIGNED
+  PICKED_UP
+  IN_TRANSIT
+  OUT_FOR_DELIVERY
+  DELIVERED
+  FAILED
+}
+
+enum message_channel {
+  EMAIL
+  SMS
+  PUSH
+}
+
+enum order_status {
+  PENDING
+  CONFIRMED
+  PREPARING
+  READY_FOR_PICKUP
+  OUT_FOR_DELIVERY
+  DELIVERED
+  CANCELLED
+  REFUNDED
+}
+
+enum payment_status {
+  PENDING
+  PAID
+  FAILED
+  CANCELLED
+  REFUNDED
+}
+
+enum payout_status {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum product_condition {
+  NEW
+  REFURBISHED
+  USED_LIKE_NEW
+  USED_GOOD
+  USED_FAIR
+}
+
+enum recipient_type {
+  CUSTOMER
+  SHOP
+}
+
+enum user_role {
+  USER
+  SELLER
+  ADMIN
+  SUPER_ADMIN
+}
