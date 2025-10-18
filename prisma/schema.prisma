@@ -16,7 +16,7 @@ model order_items {
   product_name    String         @db.VarChar(255)
   quantity        Int
   unit_price      Decimal        @db.Decimal(10, 2)
-  total_price     Decimal?       @default(dbgenerated("((quantity)::numeric * unit_price)")) @db.Decimal(10, 2)
+  total_price     Decimal?                      @db.Decimal(10, 2)
   orders          orders         @relation(fields: [order_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   shop_products   shop_products? @relation(fields: [shop_product_id], references: [id], onUpdate: NoAction)
 }
