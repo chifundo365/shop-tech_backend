@@ -33,7 +33,7 @@ CREATE TABLE "order_items" (
     "product_name" VARCHAR(255) NOT NULL,
     "quantity" INTEGER NOT NULL,
     "unit_price" DECIMAL(10,2) NOT NULL,
-    "total_price" DECIMAL(10,2) DEFAULT ((quantity)::numeric * unit_price),
+    "total_price" DECIMAL(10,2),
 
     CONSTRAINT "order_items_pkey" PRIMARY KEY ("id")
 );
